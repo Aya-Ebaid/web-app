@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="ar">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>CryptoLab </title>
+<style>
+  :root{--bg:#f6f7fb;--card:#ffffff;--muted:#6b7280;--accent:#2563eb}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;padding:18px;background:var(--bg);color:#0f172a;direction:rtl}
+  .container{max-width:980px;margin:0 auto}
+  .card{background:var(--card);border-radius:8px;padding:16px;box-shadow:0 2px 8px rgba(2,6,23,0.06);margin-bottom:16px}
+  h1{font-size:20px;margin:0 0 8px}
+  label{display:block;font-weight:600;margin-bottom:6px}
+  textarea,input,select{width:100%;padding:8px;border:1px solid #e6e9ef;border-radius:6px;font-size:14px}
+  .row{display:grid;grid-template-columns:1fr;gap:12px}
+  @media(min-width:800px){.row{grid-template-columns:1fr 1fr}}
+  .btn{display:inline-block;padding:8px 12px;border-radius:6px;border:1px solid #d1d5db;background:#fff;cursor:pointer;margin-right:8px}
+  .btn-primary{background:var(--accent);color:white;border-color:var(--accent)}
+  .btn-success{background:#16a34a;color:white;border-color:#16a34a}
+  .muted{color:var(--muted);font-size:13px}
+  .log{height:220px;overflow:auto;border:1px dashed #e5e7eb;padding:8px;border-radius:6px;background:#fbfcfe}
+  .tiny{font-size:13px;color:var(--muted)}
+  .flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .inline{display:inline-block}
+  .kbd{background:#f3f4f6;border-radius:4px;padding:2px 6px;font-family:monospace;font-size:13px}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>CryptoLab (Caesar, Vigenère, Rail Fence)</h1>
+
+  <div class="card">
+    <label> Choose Algorithm</label>
+    <select id="algo">
+      <option value="caesar">Caesar</option>
+      <option value="vigenere">Vigenère</option>
+      <option value="rail">Rail Fence</option>
+    </select>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <label>Input</label>
+      <textarea id="input" rows="6">HELLO I'M AYA OBAID </textarea>
+
+      <div id="controls" style="margin-top:12px"></div>
+
+      <div style="margin-top:12px" class="flex">
+        <button id="encryptBtn" class="btn btn-primary">Encrypt</button>
+        <button id="decryptBtn" class="btn btn-success">Decrypt</button>
+        <button id="attackBtn" class="btn">Start Attack</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <label>Output</label>
+      <textarea id="output" rows="6" readonly></textarea>
+
+      <div style="margin-top:12px">
+        <label>Steps</label>
+        <div id="log" class="log"><div class="muted"> </div></div>
+      </div>
+    </div>
+  </div>
+
+  
+</div>
+
+<script>
+/* ---------- Utilities ---------- */
+function el(id){return document.getElementById(id)}
+function nowTime(){return new Date().toLocaleTimeString()}
+function appendLog(text){
+  const lg = el('log')
+  if(lg.querySelector('.muted')) lg.innerHTML = ''
+  const div = document.createElement('div')
+  div.style.padding='6px 0'
+  div.innerHTML = '<span class="tiny">['+nowTime()+']</span> ' + text
+  lg.appendChild(div)
+  lg.scrollTop = lg.scrollHeight
+}
+
+/* ---------- Caesar ---------- */
+function caesarEncrypt(text, k){
+  let res = ''
+  for (let ch of text){
+    if (ch >= 'A' && ch <= 'Z'){
+      const base = 'A'.charCodeAt(0)
+      res += String.fromCharCode(((ch.charCodeAt(0)-base + k)%26+26)%26 + base)
+    } else if (ch >= 'a' && ch <= 'z'){
+      const base = 'a'.charCodeAt(0)
+      res += String.fromCharCode(((ch.charCodeAt(0)-base + k)%26+26)%26 + base)
+    } else res += ch
+  }
+  return res
+}
+function caesarBruteForce(cipher){
+  const cands = []
+  for(let k=0;k<26;k++) cands.push({key:k, plain: caesarEncrypt(cipher, 26-k)})
+  return cands
+}
+
+/* ---------- Vigenere ---------- */
+function vigenereEncrypt(plain, key){
+  if(!key || key.length===0) return plain
+  let res='', ki=0
+  for(let ch of plain){
+    if(/[A-Za-z]/.test(ch)){
+      const isUpper = ch === ch.toUpperCase()
+      const base = isUpper ? 'A'.charCodeAt(0) : 'a'.charCodeAt(0)
+      const shift = key.charCodeAt(ki % key.length) | 32
+      const s = shift - 97
+      res += String.fromCharCode(((ch.charCodeAt(0)-base + s)%26) + base)
+      ki++
+    } else res += ch
+  }
+  return res
+}
+function vigenereDecrypt(cipher, key){
+  if(!key || key.length===0) return cipher
+  let res='', ki=0
+  for(let ch of cipher){
+    if(/[A-Za-z]/.test(ch)){
+      const isUpper = ch === ch.toUpperCase()
+      const base = isUpper ? 'A'.charCodeAt(0) : 'a'.charCodeAt(0)
+      const shift = key.charCodeAt(ki % key.length) | 32
+      const s = shift - 97
+      res += String.fromCharCode(((ch.charCodeAt(0)-base - s + 26)%26) + base)
+      ki++
+    } else res += ch
+  }
+  return res
+}
+function splitColumns(text, keyLen){
+  const letters = Array.from(text).filter(c=>/[A-Za-z]/.test(c)).join('')
+  const cols = Array.from({length:keyLen}, ()=>'')
+  let idx=0
+  for(let ch of letters){ cols[idx % keyLen] += ch; idx++ }
+  return cols
+}
+function freqAnalysisToKeyLetter(col){
+  const counts = {}
+  for(let ch of col.toLowerCase()){ counts[ch] = (counts[ch]||0)+1 }
+  let maxC = null
+  for(let k in counts) if(!maxC || counts[k] > counts[maxC]) maxC = k
+  if(!maxC) return 'a'
+  const shift = (maxC.charCodeAt(0) - 'e'.charCodeAt(0) + 26)%26
+  return String.fromCharCode('a'.charCodeAt(0)+shift)
+}
+function vigenereAutoKeyByLen(cipher, len){
+  const cols = splitColumns(cipher, len)
+  let key = ''
+  for(let c of cols) key += freqAnalysisToKeyLetter(c)
+  return key
+}
+
+/* ---------- Rail Fence ---------- */
+function railFenceEncrypt(text, rails) {
+  if (rails < 2) return text;
+  const fence = Array.from({ length: rails }, () => []);
+  let rail = 0, dir = 1;
+  for (let ch of text) {
+    fence[rail].push(ch);
+    rail += dir;
+    if (rail === 0 || rail === rails - 1) dir *= -1;
+  }
+  return fence.map(r => r.join('')).join('');
+}
+
+function railFenceDecrypt(cipher, rails) {
+  if (rails < 2) return cipher;
+  const pattern = [];
+  let rail = 0, dir = 1;
+  for (let i = 0; i < cipher.length; i++) {
+    pattern.push(rail);
+    rail += dir;
+    if (rail === 0 || rail === rails - 1) dir *= -1;
+  }
+
+  const railLengths = Array(rails).fill(0);
+  for (let r of pattern) railLengths[r]++;
+  const railStrings = [];
+  let index = 0;
+  for (let r = 0; r < rails; r++) {
+    railStrings[r] = cipher.slice(index, index + railLengths[r]).split('');
+    index += railLengths[r];
+  }
+
+  let res = '';
+  for (let r of pattern) res += railStrings[r].shift();
+  return res;
+}
+
+/* ---------- UI wiring ---------- */
+const algoSel = el('algo'), inputEl = el('input'), outputEl = el('output'),
+      controlsDiv = el('controls'), encryptBtn = el('encryptBtn'),
+      decryptBtn = el('decryptBtn'), attackBtn = el('attackBtn'), logDiv = el('log')
+
+function renderControls(){
+  const algo = algoSel.value
+  controlsDiv.innerHTML = ''  // clear previous controls
+
+  if(algo === 'caesar'){
+    const lbl = document.createElement('label'); lbl.textContent = '(key)'
+    const inp = document.createElement('input'); inp.type='number'; inp.id='key'; inp.value='3'
+    controlsDiv.appendChild(lbl); controlsDiv.appendChild(inp)
+  } else if(algo === 'vigenere'){
+    const lbl = document.createElement('label'); lbl.textContent = ' (Sentence)'
+    const inp = document.createElement('input'); inp.type='text'; inp.id='key'; inp.value='key'
+    controlsDiv.appendChild(lbl); controlsDiv.appendChild(inp)
+  } else if(algo === 'rail'){
+    const lbl = document.createElement('label'); lbl.textContent = '(Rails)'
+    const inp = document.createElement('input'); inp.type='number'; inp.id='rails'; inp.value='3'; inp.min = 2
+    controlsDiv.appendChild(lbl); controlsDiv.appendChild(inp)
+  }
+}
+
+algoSel.addEventListener('change', ()=>{ renderControls(); logDiv.innerHTML = '<div class="muted"></div>' })
+renderControls()
+
+encryptBtn.addEventListener('click', ()=>{
+  const a = algoSel.value, txt = inputEl.value
+  if(a==='caesar'){
+    const k = parseInt(el('key').value || '0', 10) || 0
+    const out = caesarEncrypt(txt, k)
+    outputEl.value = out
+    appendLog(`Encrypted with Caesar (k=${k})`)
+  } else if(a==='vigenere'){
+    const k = el('key').value || ''
+    const out = vigenereEncrypt(txt, k)
+    outputEl.value = out
+    appendLog(`Encrypted with Vigenère (key=${k})`)
+  } else if(a==='rail'){
+    const r = Math.max(2, parseInt(el('rails').value || '2', 10) || 2)
+    const out = railFenceEncrypt(txt, r)
+    outputEl.value = out
+    appendLog(`Encrypted with Rail Fence (rails=${r})`)
+  }
+})
+
+decryptBtn.addEventListener('click', ()=>{
+  const a = algoSel.value, txt = inputEl.value
+  if(a==='caesar'){
+    const k = parseInt(el('key').value || '0', 10) || 0
+    const out = caesarEncrypt(txt, 26 - (k%26))
+    outputEl.value = out
+    appendLog(`Decrypted with Caesar (k=${k})`)
+  } else if(a==='vigenere'){
+    const k = el('key').value || ''
+    const out = vigenereDecrypt(txt, k)
+    outputEl.value = out
+    appendLog(`Decrypted with Vigenère (key=${k})`)
+  } else if(a==='rail'){
+    const r = Math.max(2, parseInt(el('rails').value || '2', 10) || 2)
+    const out = railFenceDecrypt(txt, r)
+    outputEl.value = out
+    appendLog(`Decrypted with Rail Fence (rails=${r})`)
+  }
+})
+
+attackBtn.addEventListener('click', async ()=>{
+  const a = algoSel.value
+  appendLog(`Starting attack on ${a}`)
+  if(a==='caesar'){
+    const cipher = inputEl.value
+    const cands = caesarBruteForce(cipher)
+    for(let c of cands){ appendLog(`k=${c.key} -> ${c.plain}`); await new Promise(r=>setTimeout(r,30)) }
+    appendLog('Brute-force finished (Caesar)')
+  } else if(a==='vigenere'){
+    const cipher = inputEl.value
+    for(let len=1; len<=8; len++){
+      const guessed = vigenereAutoKeyByLen(cipher, len)
+      const plain = vigenereDecrypt(cipher, guessed)
+      appendLog(`len=${len} guessedKey=${guessed} -> ${plain.slice(0,120)}`)
+      await new Promise(r=>setTimeout(r,120))
+    }
+    appendLog('Finished Vigenère analysis (len 1..8)')
+  } else if(a==='rail'){
+    const cipher = inputEl.value
+    for(let r=2; r<=12; r++){
+      const plain = railFenceDecrypt(cipher, r)
+      appendLog(`rails=${r} -> ${plain}`)
+      await new Promise(rp=>setTimeout(rp,90))
+    }
+    appendLog('rial rails finished (2..12)')
+  }
+})
+
+
+</script>
+</body>
+</html>
